@@ -1,56 +1,87 @@
-# {{crew_name}} Crew
+# カクヨムワードサラダ判定AIエージェント
 
-Welcome to the {{crew_name}} Crew project, powered by [crewAI](https://crewai.com). This template is designed to help you set up a multi-agent AI system with ease, leveraging the powerful and flexible framework provided by crewAI. Our goal is to enable your agents to collaborate effectively on complex tasks, maximizing their collective intelligence and capabilities.
+CrewAI を使ってカクヨム（小説投稿サイト）の小説がワードサラダ（意味不明な文章）でないかどうかを自動的に判定するプログラムです。
 
-## Installation
+## 概要
 
-Ensure you have Python >=3.10 <3.14 installed on your system. This project uses [UV](https://docs.astral.sh/uv/) for dependency management and package handling, offering a seamless setup and execution experience.
+このプログラムは、カクヨムに投稿された小説の冒頭エピソードを分析し、以下の3つの観点から文章品質を評価します：
 
-First, if you haven't already, install uv:
+1. **全体的無意味性** - 章全体が通時的に意味を結ばない度合い
+2. **理解不能表現** - 指示語の先行詞欠落、主述不一致、語の誤用、比喩の機能不全など
+3. **文章の流れの不自然さ** - 接続不整合、視点飛躍、段落間の談話結束の欠如
 
-```bash
-pip install uv
+それぞれの観点を0〜5点で評価し、以下の規則で総合判定を行います：
+
+- **文章破綻**: 2軸以上が4以上の場合
+- **要注意**: 1軸が3以上、または合計スコアが7以上の場合
+- **問題なし**: 上記以外の場合
+
+## 動作の流れ
+
+1. **エピソード収集**: カクヨムAPIを使って指定された作品の冒頭エピソード（デフォルトでは3話分）を取得
+2. **個別評価**: 各エピソードを`word_salad_reviewer`エージェントが分析し、`EpisodeVerdict`として判定結果を出力
+3. **統合分析**: `word_salad_aggregator`エージェントが全エピソードの結果を集約し、作品全体の傾向を分析
+
+## CrewAI エージェント構成
+
+これらプロンプトは `./src/kakuyomu/crews/story_analysis_crew/config` にあります。
+
+### word_salad_reviewer（文体査読者）
+- **役割**: 日本語小説の文体・可読性査読者（カクヨム特化）
+- **機能**:
+  - カクヨムMCPからエピソード本文を取得
+  - HTML・ルビ・脚注などのノイズを除去
+  - 3つの評価軸で文章品質を定量評価
+  - 問題箇所の具体例を抽出（最大3件・各50文字以内）
+
+### word_salad_aggregator（統合分析者）
+- **役割**: 文章品質の横断集約アナリスト
+- **機能**:
+  - 各エピソードの判定結果を統計的に集約
+  - 分布・軸別統計・外れ値検出
+  - 頻出する問題パターンの分析
+  - 総合判定と改善推奨アクションの提示
+
+## 出力データ
+
+### EpisodeVerdict（エピソード判定結果）
+```json
+{
+  "work_id": "作品ID",
+  "episode_id": "エピソードID",
+  "verdict": "問題なし|要注意|文章破綻",
+  "reasons": ["判定理由の配列"],
+  "metrics": {
+    "global_incoherence": 2,
+    "unreadable_expressions": 3,
+    "unnatural_flow": 2
+  },
+  "evidence": [
+    {
+      "span": "問題箇所の抜粋（50文字以内）",
+      "explanation": "問題点の説明"
+    }
+  ],
+  "evaluated_at": "2025-09-16T12:00:00+09:00",
+  "confidence": 0.72
+}
 ```
 
-Next, navigate to your project directory and install the dependencies:
+### SeriesAggregation（作品全体の統合分析）
+- エピソード別判定の分布・統計
+- 軸別メトリクス（平均・中央値・標準偏差）
+- 外れ値エピソードの特定
+- 頻出問題パターン
+- 総合判定と改善推奨アクション
 
-(Optional) Lock the dependencies and install them by using the CLI command:
-```bash
-crewai install
-```
 
-### Customizing
+## 文化的配慮
 
-**Add your `OPENAI_API_KEY` into the `.env` file**
+このプログラムは以下の点を考慮して設計されています：
 
-- Modify `src/kakuyomu/config/agents.yaml` to define your agents
-- Modify `src/kakuyomu/config/tasks.yaml` to define your tasks
-- Modify `src/kakuyomu/crew.py` to add your own logic, tools and specific args
-- Modify `src/kakuyomu/main.py` to add custom inputs for your agents and tasks
+- **方言・ネットスラング・創作語**: 文脈で意味が復元可能なら減点を避ける
+- **比喩や散文詩的表現**: 筋立てや叙述の骨格が残っているかを基準に評価
+- **ライトノベル特有の表現**: 口語・記号表現・比喩の多用を理解した上で評価
 
-## Running the Project
+読み手が文意を理解できるかどうかを第一基準とし、カクヨムの多様な文体を尊重しながらも、明らかに破綻した文章を検出することを目的としています。
 
-To kickstart your flow and begin execution, run this from the root folder of your project:
-
-```bash
-crewai run
-```
-
-This command initializes the kakuyomu Flow as defined in your configuration.
-
-This example, unmodified, will run the create a `report.md` file with the output of a research on LLMs in the root folder.
-
-## Understanding Your Crew
-
-The kakuyomu Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
-
-## Support
-
-For support, questions, or feedback regarding the {{crew_name}} Crew or crewAI.
-
-- Visit our [documentation](https://docs.crewai.com)
-- Reach out to us through our [GitHub repository](https://github.com/joaomdmoura/crewai)
-- [Join our Discord](https://discord.com/invite/X4JWnZnxPb)
-- [Chat with our docs](https://chatg.pt/DWjSBZn)
-
-Let's create wonders together with the power and simplicity of crewAI.

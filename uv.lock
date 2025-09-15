@@ -1650,7 +1650,7 @@ wheels = [
 ]
 
 [[package]]
-name = "kakuyomu"
+name = "kakuyomu-wordsalad"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
