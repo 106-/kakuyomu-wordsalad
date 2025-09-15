@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import logging
 
-from kakuyomu.crews.story_analysis_crew.story_analysis_crew import StoryAnalysisCrew
+from kakuyomu_wordsalad.crews.story_analysis_crew.story_analysis_crew import StoryAnalysisCrew
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -13,6 +13,8 @@ def analyze_story():
 
     # 近畿地方のある場所について
     kakuyomu_id = "16817330652495155185"
+    
+    kakuyomu_id = "16817139558722995708"
 
     # # Get URL from user
     # kakuyomu_id = input("カクヨムの作品IDを入力してください: ")
@@ -21,7 +23,7 @@ def analyze_story():
     #     logger.error("IDが入力されていません。")
     #     return
 
-    crew = StoryAnalysisCrew(kakuyomu_id, 3)
+    crew = StoryAnalysisCrew(kakuyomu_id, 10)
     result = crew.crew().kickoff()
     print(result)
 

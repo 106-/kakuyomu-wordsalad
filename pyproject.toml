@@ -1,5 +1,5 @@
 [project]
-name = "kakuyomu-wordsalad"
+name = "kakuyomu_wordsalad"
 version = "0.1.0"
 description = "CrewAIを使ったカクヨムのワードサラダ判定器"
 authors = [{ name = "106-", email = "segmentation-fault@yandex.com" }]
@@ -14,9 +14,9 @@ dependencies = [
 ]
 
 [project.scripts]
-kickoff = "kakuyomu.main:kickoff"
-run_crew = "kakuyomu.main:kickoff"
-plot = "kakuyomu.main:plot"
+kickoff = "kakuyomu_wordsalad.main:kickoff"
+run_crew = "kakuyomu_wordsalad.main:kickoff"
+plot = "kakuyomu_wordsalad.main:plot"
 
 [build-system]
 requires = ["hatchling"]

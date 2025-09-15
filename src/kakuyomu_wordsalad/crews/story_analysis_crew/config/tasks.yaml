@@ -9,30 +9,27 @@ evaluating_word_salad:
       - episode_id: エピソードID
 
     手順:
-      1) 取得:
+      - 取得:
          - カクヨムMCPで {work_id}/{episode_id} の本文を直接取得する。
          - 取得失敗時は理由を明示し、低信頼で評価を続行。
-      2) 前処理:
-         - HTML/装飾/ルビ/脚注/広告を除去し本文のみ抽出。
-         - 文分割・段落分割を行い、会話/地の文をタグ付け（内部処理で可）。
-      3) 評価（各0–5点）:
-         - 全体的無意味性, 理解不能表現の多さ, 文章の流れの不自然さ。
+      - 評価（各0–5点）:
+         - 全体的無意味性, 理解不能表現の多さ, 文章の流れの不自然さ, 文章全体の稚拙さ。
          - 参考チェック: 主述不一致/係り受け破綻/接続助詞誤用/指示語先行詞欠落/視点飛躍/語彙の乱れ 等。
-      4) 根拠抽出:
+      - 根拠抽出:
          - 問題箇所を最大3件、各「原文抜粋（最大50文字）」＋「簡潔な説明」で提示。
-      5) 判定:
+      - 判定:
          - 判定規則:
            * 2軸以上が4以上 ⇒ 「文章破綻」
            * 1軸が3以上、または合計7以上 ⇒ 「要注意」
            * 上記以外 ⇒ 「問題なし」
-      6) 出力:
+      - 出力:
          - 「EpisodeVerdict スキーマ」に準拠したJSONを返す。
 
     失敗時の扱い:
       - 本文未取得/空/極端に短い場合は verdict を「要注意」とし、reasons に明記、confidence を低めに設定。
 
     制約:
-      - 引用は最大3件・各50文字まで。ネタバレは必要最小限。
+      - 引用は最大3件・各50文字まで。ネタバレは厭わず、正確さを優先する。
       - 方言・口語・スラングは文脈で意味が通る場合は減点しない。
       - reason, explanationは日本語で記述する。
 
@@ -91,74 +88,68 @@ evaluating_word_salad:
 aggregate_word_salad:
   description: |
     目的:
-      前段タスクで得られた EpisodeVerdict（各話判定のJSON）配列を対象に、
-      分布・軸別統計・傾向・外れ値・代表的問題例を抽出し、総合判定を導出する。
+      EpisodeVerdict（各話判定のJSON）配列から全体の傾向と総合判定を導出する。
 
     入力:
       - episode_verdicts: EpisodeVerdict の配列（context から供給）
 
     手順:
-      1) 検証:
+      - 検証:
          - 各要素が EpisodeVerdict スキーマ（work_id, episode_id, verdict, reasons, metrics, evidence,
-           evaluated_at, confidence）に合致するか確認。欠落があれば reasons に明記し、その要素を除外または低重み扱い。
-      2) 集計:
-         - verdict 分布（件数・比率）を算出。
-         - 軸別統計（平均・中央値・標準偏差）を算出。小数第2位に丸める。
-         - 外れ値候補: 各軸で高スコア側の外れ値を最大3話抽出。
-      3) 傾向分析:
-         - reasons を正規化（表記ゆれ統合）し頻出上位を抽出（最大5件）。
-         - 典型的な問題の代表例を evidence から最大3件選定（各50文字以内）。
-      4) 総合判定:
-         - 「総合判定規則」に従い verdict を一意に決定し、根拠を列挙。
-         - 信頼度: サンプルサイズ・軸分散・判定分布の偏りを考慮して0–1で与える（例: 基準0.7から分散に応じ減衰）。
-      5) 出力:
-         - 下記の SeriesAggregation スキーマに準拠したJSONを返す。
+           evaluated_at, confidence）に合致するか確認。不整合要素は除外し、除外理由を overall_reasons に明記。
+      - 分布集計:
+         - verdict の件数を数える（「問題なし」「要注意」「文章破綻」）。
+      - 軸のカテゴリ化（多数決のみ）:
+         - 各話の metrics を Low(0–1)/Medium(2–3)/High(4–5) に丸める。
+         - シリーズ水準は出現が最も多いカテゴリ。タイは High > Medium > Low。
+      - 注目話の抽出（ルールのみ）:
+         - 「文章破綻」の話。
+         - または、3軸中2軸以上が High（>=4）に該当する話。
+         - 上記から最大3話。
+      - 頻出理由の抽出（簡易正規化・カウントのみ）:
+         - reasons を表記ゆれ統合（全角/半角・類義語の統合は簡易に）し、上位から最大5件を列挙。
+         - 順位付けや出現割合は不要（列挙のみ）。
+      - 総合判定:
+         - 「総合判定規則」に従って verdict を決定し、根拠（どのルールに一致したか）を列挙。
+      - 出力:
+         - 下記 SeriesAggregation スキーマに準拠した JSON を返す。
 
     注意・制約:
-      - 引用（代表例）の抜粋は最大3件・各50文字。ネタバレは極力避ける。
-      - 単話判定の再評価は行わない（入力を前提とする）。不整合は reasons に明記。
-      - 自然言語で記述するフィールドは、日本語で記述する。
+      - 代表例の引用は最大3件・各50文字以内。ネタバレは厭わず正確さを最優先する。
+      - 単話のみでも、重要な単話評価(極めておかしいなど)があれば無視せず総合評価に注記する。
 
   agent: word_salad_aggregator
 
   expected_output: |
-    SeriesAggregation スキーマ（JSON Schema相当・簡易）:
+    SeriesAggregation スキーマ（統計排除版・JSON Schema相当・簡易）:
       type: object
-      required: [work_id, episode_ids, episode_count, distribution, metrics_stats,
-                 outliers, top_reasons, representative_evidence, overall_verdict,
-                 overall_reasons, actions, evaluated_at, confidence]
+      required: [work_id, episode_ids, episode_count, distribution,
+                 axis_levels, notable_episodes, top_reasons,
+                 representative_evidence, overall_verdict, overall_reasons,
+                 actions, evaluated_at, confidence]
       properties:
         work_id: { type: string }
         episode_ids: { type: array, items: { type: string } }
         episode_count: { type: integer, minimum: 1 }
         distribution:
           type: object
+          description: "verdict の件数（比率は不要）"
           properties:
-            counts:
-              type: object
-              properties:
-                問題なし: { type: integer, minimum: 0 }
-                要注意:   { type: integer, minimum: 0 }
-                文章破綻: { type: integer, minimum: 0 }
-              additionalProperties: false
-            ratios:
-              type: object
-              properties:
-                問題なし: { type: number, minimum: 0, maximum: 1 }
-                要注意:   { type: number, minimum: 0, maximum: 1 }
-                文章破綻: { type: number, minimum: 0, maximum: 1 }
-              additionalProperties: false
+            問題なし: { type: integer, minimum: 0 }
+            要注意:   { type: integer, minimum: 0 }
+            文章破綻: { type: integer, minimum: 0 }
           additionalProperties: false
-        metrics_stats:
+        axis_levels:
           type: object
+          description: "各軸のシリーズ水準（Low/Medium/High；多数決で決定）"
           properties:
-            global_incoherence: { type: object, properties: { mean: {type:number}, median:{type:number}, stdev:{type:number} }, additionalProperties: false }
-            unreadable_expressions: { type: object, properties: { mean: {type:number}, median:{type:number}, stdev:{type:number} }, additionalProperties: false }
-            unnatural_flow: { type: object, properties: { mean: {type:number}, median:{type:number}, stdev:{type:number} }, additionalProperties: false }
+            global_incoherence: { type: string, enum: ["Low","Medium","High"] }
+            unreadable_expressions: { type: string, enum: ["Low","Medium","High"] }
+            unnatural_flow: { type: string, enum: ["Low","Medium","High"] }
           additionalProperties: false
-        outliers:
+        notable_episodes:
           type: array
-          description: "高異常話の候補（最大3件）"
+          description: "注目話（文章破綻 or 2軸以上がHigh）。最大3件"
           maxItems: 3
           items:
             type: object
@@ -168,7 +159,7 @@ aggregate_word_salad:
               reason: { type: string }
         top_reasons:
           type: array
-          description: "頻出の問題理由（正規化後・最大5件）"
+          description: "頻出の問題理由（最大5件・順位不要）"
           maxItems: 5
           items: { type: string }
         representative_evidence:
@@ -194,10 +185,10 @@ aggregate_word_salad:
             type: object
             required: [title, priority]
             properties:
-              title: { type: string, description: "例: 指示語の先行詞確認ルールの導入" }
+              title: { type: string }
               priority: { type: string, enum: ["High","Medium","Low"] }
         evaluated_at: { type: string, description: "ISO 8601日時（JST推奨）" }
-        confidence: { type: number, minimum: 0, maximum: 1 }
+        confidence: { type: number, minimum: 0, maximum: 1, description: "離散値のみ（0.9/0.8/0.7/0.6 等）" }
       additionalProperties: false
 
     例（出力イメージ）:
@@ -205,31 +196,30 @@ aggregate_word_salad:
         "work_id": "{work_id}",
         "episode_ids": ["1","2","3","4","5","6","7","8","9","10"],
         "episode_count": 10,
-        "distribution": {
-          "counts": {"問題なし": 6, "要注意": 3, "文章破綻": 1},
-          "ratios": {"問題なし": 0.60, "要注意": 0.30, "文章破綻": 0.10}
+        "distribution": { "問題なし": 6, "要注意": 3, "文章破綻": 1 },
+        "axis_levels": {
+          "global_incoherence": "Medium",
+          "unreadable_expressions": "High",
+          "unnatural_flow": "Medium"
         },
-        "metrics_stats": {
-          "global_incoherence": {"mean": 1.8, "median": 2.0, "stdev": 0.7},
-          "unreadable_expressions": {"mean": 2.4, "median": 2.0, "stdev": 0.9},
-          "unnatural_flow": {"mean": 1.9, "median": 2.0, "stdev": 0.6}
-        },
-        "outliers": [
-          {"episode_id": "7", "reason": "unreadable_expressions が突出（> 平均+2σ）"}
+        "notable_episodes": [
+          {"episode_id": "7", "reason": "2軸以上がHigh（>=4）"},
+          {"episode_id": "9", "reason": "verdict=文章破綻"}
         ],
-        "top_reasons": ["指示語の先行詞不明", "接続の不整合", "比喩の機能不全"],
+        "top_reasons": ["指示語の先行詞不明", "接続不整合", "比喩の機能不全"],
         "representative_evidence": [
           {"span": "夜の階段が笑う温度の端数", "explanation": "語同士の関係が曖昧で意味が復元できない"}
         ],
         "overall_verdict": "要注意",
         "overall_reasons": [
-          "要注意+文章破綻が50%閾値に近接",
-          "unreadable_expressions の平均が2.5付近で高め"
+          "（要注意＋文章破綻）件数が問題なし件数に拮抗",
+          "unreadable_expressions が High（多数決）"
         ],
         "actions": [
-          {"title": "参照解消（先行詞の明示）ルールの適用", "priority": "High"},
-          {"title": "接続助詞の校正チェックリスト導入", "priority": "Medium"}
+          {"title": "指示語の先行詞明示ルールの導入", "priority": "High"},
+          {"title": "接続助詞の誤用チェックリスト運用", "priority": "Medium"}
         ],
-        "evaluated_at": "2025-09-15T12:00:00+09:00",
-        "confidence": 0.74
+        "evaluated_at": "2025-09-16T12:00:00+09:00",
+        "confidence": 0.7
       }
+

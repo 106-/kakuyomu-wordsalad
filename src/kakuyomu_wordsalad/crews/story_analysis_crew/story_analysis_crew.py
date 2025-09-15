@@ -10,7 +10,7 @@ from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.project import CrewBase, agent, crew, task
 
 # Import Pydantic models for structured outputs
-from kakuyomu.models import EpisodeVerdict
+from kakuyomu_wordsalad.models import EpisodeVerdict
 from mcp import StdioServerParameters
 
 logging.basicConfig(level=logging.INFO)
